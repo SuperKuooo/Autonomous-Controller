@@ -1,3 +1,5 @@
 deeprlonsimtoro/*
 .idea/*
 venv/*
+
+*.pyc
