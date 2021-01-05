@@ -1,5 +1,5 @@
 from enum import Enum
-from numpy import array, append, dot
+import numpy as np
 from math import cos, sin, tan, radians, degrees
 
 
@@ -7,7 +7,6 @@ from math import cos, sin, tan, radians, degrees
 class CarManager:
     def __init__(self, x, y, theta):
         """
-
         :param x: x coordinate
         :param y: y coordinate
         :param theta: relative to x axis in degrees
@@ -15,7 +14,7 @@ class CarManager:
         self.location = _CarLocation(x, y, theta)
         self.physics = _CarPhysics()
         self.velocity = 5
-        self.turn_angle = 10
+        self.turn_angle = 0
         self.look_ahead_dist = 5
 
     def set_velocity(self, velocity):
@@ -24,11 +23,23 @@ class CarManager:
     def set_turn_angle(self, angle):
         self.turn_angle = angle
 
+    def get_velocity(self):
+        return self.velocity
+
+    def get_turn_angle(self):
+        return self.turn_angle
+
+    def get_heading_angle(self):
+        return self.location.get_heading_angle()
+
     def get_states(self):
+        return [self.get_velocity(), self.get_turn_angle(), self.get_heading_angle()]
+
+    def get_points(self):
         car_points = self.location.get_points()
         center = self.location.get_centers()
 
-        states = [center, car_points, ]
+        states = [center, car_points]
         return states
 
     def update(self, interval):
@@ -43,7 +54,7 @@ class CarManager:
         """
         dot_matrix = self.location.get_dot_matrix(self.velocity, self.turn_angle)
         d_x, d_y, d_theta = interval * dot_matrix  # meter, meter, radians
-        delta = array([[d_x, d_y]]).transpose()
+        delta = np.array([[d_x, d_y]]).transpose()
 
         self.location.set_center(delta, add=True)
         self.location.set_heading_angle(d_theta, add=True)
@@ -55,22 +66,22 @@ class CarManager:
 # handles the car locations, transformation, and setups
 class _CarLocation:
     def __init__(self, x, y, theta):
-        self.center = array([[x, y]], dtype=float).transpose()
+        self.center = np.array([[x, y]], dtype=float).transpose()
 
         # all points HERE are relative to the global frame
-        self.car_points = array([0, 0])
+        self.car_points = np.array([0, 0])
 
-        point1 = array([0.5, -0.5])
-        point2 = array([-0.5, -0.5])
-        point3 = array([-0.5, 0.5])
-        point4 = array([0, 0.7])
-        point5 = array([0.5, 0.5])
-        point6 = array([0.5, -0.5])
+        point1 = np.array([0.5, -0.5])
+        point2 = np.array([-0.5, -0.5])
+        point3 = np.array([-0.5, 0.5])
+        point4 = np.array([0, 0.7])
+        point5 = np.array([0.5, 0.5])
+        point6 = np.array([0.5, -0.5])
 
         # car_points dimensions = [2, 6]
-        self.car_points = append([self.car_points],
-                                 [point1, point2, point3, point4, point5, point6],
-                                 axis=0).transpose()
+        self.car_points = np.append([self.car_points],
+                                    [point1, point2, point3, point4, point5, point6],
+                                    axis=0).transpose()
 
         # relative to global x axis
         self.heading_angle = theta
@@ -83,18 +94,21 @@ class _CarLocation:
         y_dot = velocity * cos(head_rad)
         theta_dot = velocity / CarConfig.length.value * tan(wheel_rad)
 
-        return array([x_dot, y_dot, theta_dot])
+        return np.array([x_dot, y_dot, theta_dot])
 
     def get_points(self):
         head_rad = radians(self.heading_angle)
-        rotation_matrix = array([[cos(head_rad), -sin(head_rad)], [sin(head_rad), cos(head_rad)]])
+        rotation_matrix = np.array([[cos(head_rad), -sin(head_rad)], [sin(head_rad), cos(head_rad)]])
 
-        points = dot(rotation_matrix, self.car_points)
+        points = np.dot(rotation_matrix, self.car_points)
         points += self.center
         return points
 
     def get_centers(self):
         return self.center
+
+    def get_heading_angle(self):
+        return self.heading_angle
 
     def set_heading_angle(self, angle, add=False):
         if add:
@@ -133,6 +147,7 @@ class WayPoints:
         self.n_points = n_points
         self.config = config
         self.way_points = None
+        self.goal = None
 
     def generate_way_points(self, length):
         if self.config == WayPointsConfig.straight_line:
@@ -140,7 +155,8 @@ class WayPoints:
             start = -2
             points_x = ones((1, self.n_points)) * 0  # change if need different x
             points_y = linspace(start, start + length, self.n_points).reshape((1, self.n_points))
-            self.way_points = append(points_x, points_y, axis=0)
+            self.way_points = np.append(points_x, points_y, axis=0)
+        self.goal = self.way_points[:, -1].reshape((2, 1))
 
     def get_way_points(self, row):
         if row == 'x':
@@ -148,10 +164,24 @@ class WayPoints:
         elif row == 'y':
             return self.way_points[1, :]
 
-    def get_near_way_points(self, center, search_dist):
-        search_dist = search_dist ** 2
-        temp_wp = (self.way_points - center) ** 2
-        print()
+    def get_cross_trek(self, car: CarManager):
+        # TODO: come back and check definition of cross trek error
+        center, _ = car.get_points()
+        wp = (self.way_points - center) ** 2
+        wp = np.sum(wp, axis=0)
+        index = np.where(wp == min(wp))[0][0]
+        return wp[index] ** 0.5
+
+    def get_goal_error(self, car: CarManager):
+        """
+        gets the distance away from the goal
+        :param car:
+        :return:
+        """
+        center, _ = car.get_points()
+        # print(center)
+        goal = (self.goal - center) ** 2
+        return (goal[0] + goal[1]) ** 0.5
 
 
 class WayPointsConfig(Enum):
