@@ -16,9 +16,9 @@ wp_line, = ax.plot(0, 0, 'ro', markersize=1)
 
 
 class Simulator:
-    og_x = 0
+    og_x = 1
     og_y = -3
-    og_theta = 0
+    og_theta = 0.001
 
     def __init__(self, delta_t):
         self.delta_t = delta_t  # in milliseconds
@@ -39,8 +39,8 @@ class Simulator:
         """
 
         # TODO: set a delay to turn angle and velocity
-        # target_velocity = actions[0]
-        # target_turn_angle = actions[1]
+        v_clip = self.car.set_velocity(actions[0])
+        turn_angle_clip = self.car.set_turn_angle(actions[1])
 
         # update car location
         self.car.update(delta_t / 1000)
@@ -55,8 +55,15 @@ class Simulator:
         velocity = states[0]
 
         # calculate reward
-        reward = -ct_e ** 1.8 - self.delta_t / 1000 * velocity * 10 - goal_e
-
+        reward = -ct_e ** 1.8 + self.delta_t + 1000 * velocity * 10 - goal_e - 15 * (v_clip + turn_angle_clip)
+        """
+        Rewards function explaination
+        1. Cross trek error is heavily punished
+        2. Reduce distance traveled so the car doesn't go back and forth
+        3. The closer to the goal, the less punishment it is
+        4. Punished when model hits max velocity or turn angle
+        """
+        print(reward)
         return states, reward, done
 
     def render(self):
@@ -84,11 +91,12 @@ class Simulator:
         :return:
         """
         self.car = CarManager(self.og_x, self.og_y, self.og_theta)
+        return self.car.get_states()
 
 
 if __name__ == "__main__":
     sim = Simulator(50)
-    actions = list()
+    action = list()
     for i in range(100):
-        sim.step(50 / 1000, actions)
+        sim.step(50 / 1000, action)
         sim.render()

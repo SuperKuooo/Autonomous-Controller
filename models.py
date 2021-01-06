@@ -13,15 +13,19 @@ class CarManager:
         """
         self.location = _CarLocation(x, y, theta)
         self.physics = _CarPhysics()
-        self.velocity = 5
-        self.turn_angle = 0
+        self.velocity = 3
+        self.turn_angle = 0.001
         self.look_ahead_dist = 5
 
     def set_velocity(self, velocity):
-        self.velocity = velocity
+        cap = True if abs(velocity) > CarConfig.max_speed.value else False
+        self.velocity = CarConfig.max_speed.value if cap else velocity
+        return cap
 
     def set_turn_angle(self, angle):
-        self.turn_angle = angle
+        cap = True if abs(angle) > CarConfig.max_turn_angle.value else False
+        self.turn_angle = CarConfig.max_turn_angle.value if cap else angle
+        return cap
 
     def get_velocity(self):
         return self.velocity
@@ -33,7 +37,8 @@ class CarManager:
         return self.location.get_heading_angle()
 
     def get_states(self):
-        return [self.get_velocity(), self.get_turn_angle(), self.get_heading_angle()]
+        return np.array([self.get_velocity(), self.get_turn_angle(), self.get_heading_angle()])
+        # return np.array([0.0, 0.0, 0.0])
 
     def get_points(self):
         car_points = self.location.get_points()
@@ -140,6 +145,7 @@ class CarConfig(Enum):
     wheel_radius = 0.5
     wheel_deflection = 0
     max_turn_angle = 15  # degree
+    max_speed = 5
 
 
 class WayPoints:
@@ -179,7 +185,6 @@ class WayPoints:
         :return:
         """
         center, _ = car.get_points()
-        # print(center)
         goal = (self.goal - center) ** 2
         return (goal[0] + goal[1]) ** 0.5
 
