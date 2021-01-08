@@ -37,7 +37,10 @@ class CarManager:
         return self.location.get_heading_angle()
 
     def get_states(self):
-        return np.array([self.get_velocity(), self.get_turn_angle(), self.get_heading_angle()])
+        center, _ = self.get_points()
+        x, = center[0]
+        y, = center[1]
+        return np.array([self.get_velocity(), self.get_turn_angle(), self.get_heading_angle(), x, y])
         # return np.array([0.0, 0.0, 0.0])
 
     def get_points(self):
@@ -152,6 +155,7 @@ class WayPoints:
     def __init__(self, n_points, config):
         self.n_points = n_points
         self.config = config
+        self.key_point_index = 0
         self.way_points = None
         self.goal = None
 
@@ -175,8 +179,8 @@ class WayPoints:
         center, _ = car.get_points()
         wp = (self.way_points - center) ** 2
         wp = np.sum(wp, axis=0)
-        index = np.where(wp == min(wp))[0][0]
-        return wp[index] ** 0.5
+        self.key_point_index = np.where(wp == min(wp))[0][0]
+        return wp[self.key_point_index] ** 0.5
 
     def get_goal_error(self, car: CarManager):
         """
@@ -187,6 +191,15 @@ class WayPoints:
         center, _ = car.get_points()
         goal = (self.goal - center) ** 2
         return (goal[0] + goal[1]) ** 0.5
+
+    def get_upcoming_waypoints(self, n_points):
+        end_point = self.key_point_index + n_points
+        end_point = self.n_points if end_point > self.n_points else end_point
+        points = self.way_points[:, self.key_point_index:end_point]
+        for _ in range(points.shape[1], n_points):
+            goal = self.way_points[:, -1].reshape((2, 1))
+            points = np.concatenate((points, goal), axis=1)
+        return points
 
 
 class WayPointsConfig(Enum):

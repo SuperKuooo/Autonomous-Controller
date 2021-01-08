@@ -7,13 +7,14 @@ from RL_models import Pi
 
 gamma = 0.99  # used to calculate return
 
-in_dim = 3  # number of observing states
+in_dim = 5 + 20  # number of observing states
 
 # Output Dimensions
 # Normal distribution, so two parameters each
 # 1. velocity
 # 2. turn angle
 out_dim = 2 * 2
+loss_list = list()
 
 
 def train(pi, optimizer):
@@ -34,32 +35,38 @@ def train(pi, optimizer):
     optimizer.zero_grad()
     loss.backward()
     optimizer.step()
+    loss_list.append(loss)
     return loss
 
 
 def main():
     sim_length = 10  # simulation length per episode in seconds (simulation time)
-    delta_t = 50.0  # time step duration in millisecond (simulation time)
+    delta_t = 200  # time step duration in millisecond (simulation time)
 
     sim = Simulator(delta_t)
     pi = Pi(in_dim, out_dim)
     optimizer = optim.Adam(pi.parameters(), lr=0.01)
 
-    for epoch in range(200):
-        states = sim.reset()
-        for i in range(int(sim_length / delta_t * 1000)):
-            actions = pi.act(states)
-            states, reward, done = sim.step(delta_t, actions)  # input step in millisecond
-            sim.render()
+    try:
+        for epoch in range(1000):
+            states = sim.reset()
+            for i in range(int(sim_length / delta_t * 1000)):
+                actions = pi.act(states)
+                states, reward, done = sim.step(delta_t, actions)  # input step in millisecond
+                # sim.render()
 
-            pi.rewards.append(reward)
-            if done:
-                break
+                pi.rewards.append(reward)
+                if done:
+                    break
 
-        loss = train(pi, optimizer)
-        total_reward = sum(pi.rewards)
-        pi.on_policy_reset()
-        print(f'Epoch: {epoch}, loss: {loss}, total reward: {total_reward}')
+            loss = train(pi, optimizer)
+            total_reward = sum(pi.rewards)
+            pi.on_policy_reset()
+            print(f'Epoch: {epoch}, loss: {loss}, total reward: {total_reward}')
+    finally:
+        print("Training has been stopped")
+        torch.save(pi.model.state_dict(), './trained/straight_line')
+        sim.plot_loss(loss_list)
 
 
 if __name__ == '__main__':

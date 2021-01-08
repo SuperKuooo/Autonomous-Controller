@@ -1,5 +1,6 @@
 from models import CarManager, WayPoints, WayPointsConfig
 from matplotlib import use
+from numpy import concatenate
 import matplotlib.pyplot as plt
 
 # initialize matplotlib stuff
@@ -16,8 +17,8 @@ wp_line, = ax.plot(0, 0, 'ro', markersize=1)
 
 
 class Simulator:
-    og_x = 1
-    og_y = -3
+    og_x = 0
+    og_y = -2
     og_theta = 0.001
 
     def __init__(self, delta_t):
@@ -50,12 +51,17 @@ class Simulator:
         goal_e = self.wp.get_goal_error(self.car)
         done = True if goal_e < 0.3 else False
 
-        # get velocity and turn angle
+        # get velocity, turn_angle, heading angle
         states = self.car.get_states()
         velocity = states[0]
 
+        # get nearest waypoints
+        wp = self.wp.get_upcoming_waypoints(10)
+        states = concatenate((states, wp[0, :], wp[1, :]))
+
         # calculate reward
-        reward = -ct_e ** 1.8 + self.delta_t + 1000 * velocity * 10 - goal_e - 15 * (v_clip + turn_angle_clip)
+        reward = -ct_e ** 2 - 100 * goal_e - 100 * (v_clip + turn_angle_clip) + done * 300000
+        # reward = -ct_e ** 1.8 + self.delta_t * 1000 * velocity * 10 - goal_e - 15 * (v_clip + turn_angle_clip)
         """
         Rewards function explaination
         1. Cross trek error is heavily punished
@@ -63,7 +69,6 @@ class Simulator:
         3. The closer to the goal, the less punishment it is
         4. Punished when model hits max velocity or turn angle
         """
-        print(reward)
         return states, reward, done
 
     def render(self):
@@ -91,7 +96,15 @@ class Simulator:
         :return:
         """
         self.car = CarManager(self.og_x, self.og_y, self.og_theta)
-        return self.car.get_states()
+        states = self.car.get_states()
+        wp = self.wp.get_upcoming_waypoints(10)
+        return concatenate((states, wp[0, :], wp[1, :]))
+
+    @staticmethod
+    def plot_loss(loss):
+        x = list(range(len(loss)))
+        plt.plot(x, loss)
+        plt.show()
 
 
 if __name__ == "__main__":
